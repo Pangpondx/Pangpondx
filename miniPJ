@@ -1,0 +1,138 @@
+#include <Arduino.h>
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+
+/// *** ตั้งค่าบอร์ด ESP เชื่อมต่อกับ Blynk *** ///
+#include <ESP8266WiFi.h>
+#include <WiFiManager.h>
+#define BLYNK_TEMPLATE_ID "TMPL68rwL9h-z"
+#define BLYNK_TEMPLATE_NAME "miniPJ"
+#define BLYNK_AUTH_TOKEN "qxObHOPqk8kfdpYt3tOPlMyi_htRWcM4"
+#include <BlynkSimpleEsp8266.h>
+
+/// *** ใส่ค่า Auth token จาก Blynk *** ///
+char auth[] = "qxObHOPqk8kfdpYt3tOPlMyi_htRWcM4"; 
+
+/// *** ใส่ชื่อ wifi และรหัสผ่าน *** ///
+char ssid[] = "Vann";  
+char pass[] = "0926538951";   
+
+/// *** ตั้งค่าเซนเซอร์ DHT *** ///
+#define DHTPIN D1
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+int humi_Val = 0;
+float temp_Val = 0;
+
+/// *** ตั้งค่าเซนเซอร์วัดฝน *** ///
+#define RAINSENSER A0 
+int rain_Val = 0;
+
+/// *** ตั้งค่า Output *** ///
+#define BUZZER D2
+
+/// *** กำหนดสถานะ *** ///
+const int process = 0;
+const int normal = 1;
+const int warning = 2;
+const int danger = 3;
+int state;
+
+void setup() {
+
+  /// *** ตั้งค่า Serial และ DHT *** ///
+  Serial.begin(115200);
+  dht.begin();
+  
+  /// *** ตั้งค่า Blynk *** ///
+  Blynk.begin(auth, ssid, pass);
+  WiFiManager wifiManager;
+  wifiManager.autoConnect("AutoConnectAP");
+
+  Blynk.config(BLYNK_AUTH_TOKEN);
+  if (Blynk.connect()) {
+    Serial.println("Blynk connected");
+  } else {
+    Serial.println("Blynk connection failed");
+  }
+
+  
+  /// *** ตั้งค่า Pin *** ///
+  pinMode(BUZZER, OUTPUT);
+  
+  /// *** กำหนดสถานะแรกเริ่ม *** ///
+  state = process;
+}
+
+void loop() {
+
+  /// *** ฟังก์ชัน run ของ Blynk *** ///
+  Blynk.run();
+
+  /// *** ประมวลผล *** ///
+  if(state == process){
+    digitalWrite(BUZZER, HIGH);
+    humi_Val = dht.readHumidity();
+    temp_Val = dht.readTemperature();
+    rain_Val = analogRead(RAINSENSER);
+    
+    /// *** ฟังก์ชันการคำนวณ *** ///
+    if(humi_Val >= 60 && rain_Val > 650){ 
+      state = warning;
+    } else if(humi_Val >= 60 && rain_Val <= 650){
+      state = danger;
+    } else {
+      state = normal;
+    }
+  }
+
+  /// *** แสดงผลข้อมูลและเขียนข้อมูลไปยัง Blynk Virtual Pins *** ///
+  else if(state == normal){
+    Serial.println("---------------------------------");
+    Serial.print("Humidity volume    = "); Serial.print(humi_Val); Serial.println(" %");
+    Serial.print("Temperature volume = "); Serial.print(temp_Val); Serial.println(" °C");
+    Serial.print("Rainfall volume    = "); Serial.println(rain_Val);
+    Serial.println("Is normal");
+
+    Blynk.virtualWrite(V0, humi_Val);  /// ความชื้นบน V0
+    Blynk.virtualWrite(V1, temp_Val);  /// อุณหภูมิบน V1
+    Blynk.virtualWrite(V2, rain_Val);  /// ปริมาณฝนบน V2
+
+    digitalWrite(BUZZER, HIGH);
+    state = process;
+  }
+
+  else if (state == warning){
+    Serial.println("---------------------------------");
+    Serial.print("Humidity volume    = "); Serial.print(humi_Val); Serial.println(" %");
+    Serial.print("Temperature volume = "); Serial.print(temp_Val); Serial.println(" °C");
+    Serial.print("Rainfall volume    = "); Serial.println(rain_Val);
+    Serial.println("Is warning");
+
+    Blynk.virtualWrite(V0, humi_Val);  /// ความชื้นบน V0
+    Blynk.virtualWrite(V1, temp_Val);  /// อุณหภูมิบน V1
+    Blynk.virtualWrite(V2, rain_Val);  /// ปริมาณฝนบน V2
+
+    digitalWrite(BUZZER, LOW);
+    delay(500);
+    digitalWrite(BUZZER, HIGH);
+    state = process;
+  }
+  
+  else if (state == danger){
+    Serial.println("---------------------------------");
+    Serial.print("Humidity volume    = "); Serial.print(humi_Val); Serial.println(" %");
+    Serial.print("Temperature volume = "); Serial.print(temp_Val); Serial.println(" °C");
+    Serial.print("Rainfall volume    = "); Serial.println(rain_Val);
+    Serial.println("Is danger");
+
+    Blynk.virtualWrite(V0, humi_Val);  /// ความชื้นบน V0
+    Blynk.virtualWrite(V1, temp_Val);  /// อุณหภูมิบน V1
+    Blynk.virtualWrite(V2, rain_Val);  /// ปริมาณฝนบน V2
+
+    digitalWrite(BUZZER, LOW);
+    delay(1000);
+    digitalWrite(BUZZER, HIGH);
+    state = process;
+  }
+}
